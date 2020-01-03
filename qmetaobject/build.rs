@@ -17,12 +17,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 extern crate cpp_build;
 use std::process::Command;
+use std::env;
 
-fn qmake_query(var: &str) -> String {
+fn qmake_query(qmake: &str, args: &str, var: &str) -> String {
+    let mut qmake_cmd_list: Vec<&str> = qmake.split(' ').collect();
+    qmake_cmd_list.push("-query");
+    qmake_cmd_list.push(var);
+    if !args.is_empty() {
+        let mut qmake_args_list: Vec<&str> = args.split(' ').collect();
+        qmake_cmd_list.append(&mut qmake_args_list);
+    }
+
     String::from_utf8(
-        Command::new("qmake")
-            .env("QT_SELECT", "qt5")
-            .args(&["-query", var])
+        Command::new(qmake_cmd_list[0])
+            .args(&qmake_cmd_list[1..])
             .output()
             .expect("Failed to execute qmake. Make sure 'qmake' is in your path")
             .stdout,
@@ -30,9 +38,24 @@ fn qmake_query(var: &str) -> String {
     .expect("UTF-8 conversion failed")
 }
 
+fn qmake_call() -> String {
+    env_var("QMAKE").unwrap_or(String::from("qmake"))
+}
+
+fn qmake_args() -> String {
+    env_var("QMAKE_ARGS").unwrap_or(String::new())
+}
+
+fn env_var(key: &str) -> Result<String, env::VarError> {
+    Ok(String::from(env::var(key)?.to_string()))
+}
+
 fn main() {
-    let qt_include_path = qmake_query("QT_INSTALL_HEADERS");
-    let qt_library_path = qmake_query("QT_INSTALL_LIBS");
+    let qmake_cmd = qmake_call();
+    let args = qmake_args();
+
+    let qt_include_path = qmake_query(&qmake_cmd, &args, "QT_INSTALL_HEADERS");
+    let qt_library_path = qmake_query(&qmake_cmd, &args, "QT_INSTALL_LIBS");
     let mut config = cpp_build::Config::new();
 
     if cfg!(target_os = "macos") {
